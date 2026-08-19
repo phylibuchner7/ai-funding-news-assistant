@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Environment variables / secrets (never commit API keys)
+.env
+
+# Jupyter/Colab
+.ipynb_checkpoints/
+
+# macOS / OS junk files
+.DS_Store
+Thumbs.db
+
+# Cached models / large downloaded files (sentence-transformers, etc.)
+*.cache/
+.cache/
+
+# FAISS index files, if saved locally during testing
+*.faiss
+*.index
+
+# Logs
+*.log
