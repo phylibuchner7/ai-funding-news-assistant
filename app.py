@@ -243,44 +243,40 @@ def answer_question(question):
 # STEP 7: Route Ranking Questions to the Structured Table
 # ============================================================
 def is_ranking_question(question):
+    """
+    Routes to the structured funding table only when the question
+    is asking specifically about a funding amount ranking (e.g.,
+    "which company raised the most"). If the question asks for
+    other information about that company (CEO, founder, location,
+    etc.), it's excluded here so it falls through to the normal
+    RAG pipeline instead, since the funding table only contains
+    company name, amount, and URL, not other company details.
+    """
+    question_lower = question.lower()
+
     ranking_keywords = [
         "most", "least", "largest", "smallest",
         "highest", "lowest", "biggest", "top", "bottom"
     ]
-    question_lower = question.lower()
-    return any(keyword in question_lower for keyword in ranking_keywords)
+    funding_keywords = [
+        "funding", "raised", "raise", "round", "money", "amount"
+    ]
 
+    # Words that signal the question wants something OTHER than
+    # the funding amount/company name itself -- if any of these
+    # appear, the funding table can't answer it, so skip routing
+    # there even if ranking + funding words are also present.
+    attribute_keywords = [
+        "who is", "who's", "ceo", "founder", "founded",
+        "when", "where", "why", "how many employees",
+        "headquartered", "based in", "investor", "led by"
+    ]
 
-def answer_ranking_question(question):
-    question_lower = question.lower()
+    has_ranking_word = any(kw in question_lower for kw in ranking_keywords)
+    has_funding_word = any(kw in question_lower for kw in funding_keywords)
+    has_attribute_word = any(kw in question_lower for kw in attribute_keywords)
 
-    if any(word in question_lower for word in ["least", "smallest", "lowest", "bottom"]):
-        entry = funding_table[-1]
-        direction = "the least"
-    else:
-        entry = funding_table[0]
-        direction = "the most"
-
-    answer = (
-        f"Based on all {len(funding_table)} funding announcements collected, "
-        f"the company that raised {direction} was associated with this "
-        f"headline: \"{entry['title']}\" (${entry['amount_millions']:,.1f}M)."
-    )
-    return answer, [entry["url"]]
-
-
-def chatbot_response(question, history):
-    if is_ranking_question(question):
-        answer, sources = answer_ranking_question(question)
-    else:
-        answer, sources = answer_question(question)
-
-    if sources:
-        sources_text = "\n".join(f"- {url}" for url in sources)
-        return f"{answer}\n\n**Sources:**\n{sources_text}"
-    else:
-        return answer
-
+    return has_ranking_word and has_funding_word and not has_attribute_word
 
 # ============================================================
 # STEP 8: Gradio Chat Interface
