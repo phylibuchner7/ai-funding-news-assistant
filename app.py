@@ -78,7 +78,7 @@ def get_article_links(url, max_articles=20):
 # ============================================================
 # STEP 2: Fetch Full Article Text
 # ============================================================
-def (url):
+def get_article_text(url):
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
