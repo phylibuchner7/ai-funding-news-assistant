@@ -19,7 +19,6 @@ import time
 import numpy as np
 import requests
 from bs4 import BeautifulSoup
-from sentence_transformers import SentenceTransformer
 import faiss
 from openai import OpenAI
 import gradio as gr
@@ -37,6 +36,18 @@ client = OpenAI(api_key=openai_api_key)
 
 BASE_URL = "https://techcrunch.com/category/fundraising/"
 
+def get_openai_embeddings(texts):
+    """
+    Generates embeddings using OpenAI's API instead of a local
+    sentence-transformers model, to avoid the memory overhead of
+    loading a full model (and PyTorch) on Render's free tier.
+    """
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+    embeddings = [item.embedding for item in response.data]
+    return np.array(embeddings)
 
 # ============================================================
 # STEP 1: Scrape Article Links
@@ -67,7 +78,7 @@ def get_article_links(url, max_articles=20):
 # ============================================================
 # STEP 2: Fetch Full Article Text
 # ============================================================
-def get_article_text(url):
+def (url):
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
@@ -100,7 +111,7 @@ def chunk_text(text, chunk_size=800, overlap=100):
 
 
 # ============================================================
-# STEP 5B: Extract Funding Amounts for the Ranking Table
+# STEP 4: Extract Funding Amounts for the Ranking Table
 # ============================================================
 def extract_funding_amount(text):
     match = re.search(r'\$(\d+\.?\d*)\s*(billion|B|million|M)', text, re.IGNORECASE)
@@ -123,7 +134,7 @@ MANUAL_CORRECTIONS = {
 
 
 # ============================================================
-# BUILD PIPELINE: Runs once at startup to produce all_chunks,
+# STEP 5: BUILD PIPELINE: Runs once at startup to produce all_chunks,
 # the FAISS index, and funding_table.
 # ============================================================
 def build_pipeline():
@@ -145,9 +156,8 @@ def build_pipeline():
             })
 
     print("Generating embeddings and building FAISS index...")
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
     chunk_texts = [c["text"] for c in all_chunks]
-    embeddings = embedding_model.encode(chunk_texts, show_progress_bar=False)
+    embeddings = get_openai_embeddings(chunk_texts)
     embeddings = np.ascontiguousarray(embeddings.astype(np.float32))
 
     dimension = embeddings.shape[1]
@@ -174,18 +184,16 @@ def build_pipeline():
     funding_table.sort(key=lambda x: x["amount_millions"], reverse=True)
 
     print(f"Pipeline built: {len(all_chunks)} chunks, {len(funding_table)} funding entries.")
-    return all_chunks, index, embedding_model, funding_table
-
+    return all_chunks, index, funding_table
 
 # Run once when the app starts up
-all_chunks, index, embedding_model, funding_table = build_pipeline()
-
+all_chunks, index, funding_table = build_pipeline()
 
 # ============================================================
-# STEP 5: Retrieval + Question Answering
+# STEP 6: Retrieval + Question Answering
 # ============================================================
 def retrieve_relevant_chunks(question, top_k=4):
-    question_embedding = embedding_model.encode([question])
+    question_embedding = get_openai_embeddings([question])
     question_embedding = np.ascontiguousarray(question_embedding.astype(np.float32))
     distances, indices = index.search(question_embedding, top_k)
     return [all_chunks[i] for i in indices[0]]
@@ -232,7 +240,7 @@ def answer_question(question):
 
 
 # ============================================================
-# STEP 5C: Route Ranking Questions to the Structured Table
+# STEP 7: Route Ranking Questions to the Structured Table
 # ============================================================
 def is_ranking_question(question):
     ranking_keywords = [
@@ -275,7 +283,7 @@ def chatbot_response(question, history):
 
 
 # ============================================================
-# STEP 6: Gradio Chat Interface
+# STEP 8: Gradio Chat Interface
 # ============================================================
 demo = gr.ChatInterface(
     fn=chatbot_response,
