@@ -277,6 +277,34 @@ def is_ranking_question(question):
     has_attribute_word = any(kw in question_lower for kw in attribute_keywords)
 
     return has_ranking_word and has_funding_word and not has_attribute_word
+def answer_ranking_question(question):
+    question_lower = question.lower()
+
+    if any(word in question_lower for word in ["least", "smallest", "lowest", "bottom"]):
+        entry = funding_table[-1]
+        direction = "the least"
+    else:
+        entry = funding_table[0]
+        direction = "the most"
+
+    answer = (
+        f"Based on all {len(funding_table)} funding announcements collected, "
+        f"the company that raised {direction} was associated with this "
+        f"headline: \"{entry['title']}\" (${entry['amount_millions']:,.1f}M)."
+    )
+    return answer, [entry["url"]]
+
+def chatbot_response(question, history):
+    if is_ranking_question(question):
+        answer, sources = answer_ranking_question(question)
+    else:
+        answer, sources = answer_question(question)
+
+    if sources:
+        sources_text = "\n".join(f"- {url}" for url in sources)
+        return f"{answer}\n\n**Sources:**\n{sources_text}"
+    else:
+        return answer
 
 # ============================================================
 # STEP 8: Gradio Chat Interface
