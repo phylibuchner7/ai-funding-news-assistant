@@ -248,7 +248,11 @@ def answer_question(question):
         )
         return friendly_message, []
 
-    sources = list(set(chunk["url"] for chunk in relevant_chunks))
+    # Only cite sources from the top 3 most similar chunks, even though
+    # more chunks were used for context. This keeps the visible source
+    # list tightly relevant to the answer, rather than including every
+    # chunk retrieved for broader context.
+    sources = list(set(chunk["url"] for chunk in relevant_chunks[:3]))
     return answer, sources
 
 
@@ -256,7 +260,12 @@ def answer_question(question):
 # STEP 7: Route Ranking Questions to the Structured Table
 # ============================================================
 def is_ranking_question(question):
-    """
+    """    # Only cite sources from the top 3 most similar chunks, even though
+    # more chunks were used for context -- this keeps the visible source
+    # list tightly relevant to the answer, rather than including every
+    # chunk retrieved for broader context.
+    sources = list(set(chunk["url"] for chunk in relevant_chunks[:3]))
+    return answer, sources
     Routes to the structured funding table ONLY for pure amount
     rankings across ALL companies (e.g., "which company raised
     the most"). Any question with an added category, topic, or
