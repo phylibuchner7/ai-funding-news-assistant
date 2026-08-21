@@ -307,7 +307,7 @@ def answer_ranking_question(question):
 
     # Check if the question asks for a specific number of results
     # (e.g. "top 3", "top 5") -- default to 1 if no number is found
-    count_match = re.search(r'\btop\s+(\d+)\b', question_lower)
+    count_match = re.search(r'\b(?:top|bottom)\s+(\d+)\b', question_lower)
     count = int(count_match.group(1)) if count_match else 1
 
     if any(word in question_lower for word in ["least", "smallest", "lowest", "bottom"]):
