@@ -198,8 +198,16 @@ def retrieve_relevant_chunks(question, top_k=10):
     distances, indices = index.search(question_embedding, top_k)
     return [all_chunks[i] for i in indices[0]]
 
-
 def answer_question(question):
+    """
+    Full pipeline: retrieve relevant chunks, ask the LLM to answer
+    using only that context, and only return sources if the model
+    was actually able to answer. The model is explicitly told not
+    to make ranking/superlative claims (most, least, largest) since
+    it only sees a small subset of articles, not the full dataset --
+    those claims are handled separately by the structured funding
+    table instead.
+    """
     relevant_chunks = retrieve_relevant_chunks(question)
     context = "\n\n".join(
         f"Source: {chunk['title']}\n{chunk['text']}"
@@ -211,10 +219,12 @@ def answer_question(question):
         "AI and startup funding news. Using ONLY the context below, "
         "answer the question. If the context does not contain the "
         "answer, respond with exactly: NOT_FOUND. "
-        "If the question asks you to compare, rank, or find the "
-        "'most' or 'least' across companies, note that your answer "
-        "is based only on the limited set of articles retrieved, "
-        "not a full comparison of all available funding news.\n\n"
+        "Do NOT make any claims about which company raised the most, "
+        "least, or largest amount -- you only have access to a small "
+        "subset of articles, not the complete dataset, so any such "
+        "claim would likely be wrong. If the question requires "
+        "comparing amounts across companies, respond with exactly: "
+        "NOT_FOUND\n\n"
         f"Context:\n{context}\n\n"
         f"Question: {question}"
     )
@@ -227,7 +237,10 @@ def answer_question(question):
 
     answer = response.choices[0].message.content.strip()
 
-    if answer == "NOT_FOUND":
+    # Check whether the model signaled it couldn't answer -- using
+    # "in" rather than exact equality, since the model doesn't
+    # always return ONLY the sentinel value on its own line.
+    if "NOT_FOUND" in answer:
         friendly_message = (
             "I don't have enough information in the current articles "
             "to answer that. Try asking about a specific company, "
