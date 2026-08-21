@@ -192,7 +192,7 @@ all_chunks, index, funding_table = build_pipeline()
 # ============================================================
 # STEP 6: Retrieval + Question Answering
 # ============================================================
-def retrieve_relevant_chunks(question, top_k=4):
+def retrieve_relevant_chunks(question, top_k=10):
     question_embedding = get_openai_embeddings([question])
     question_embedding = np.ascontiguousarray(question_embedding.astype(np.float32))
     distances, indices = index.search(question_embedding, top_k)
@@ -252,7 +252,6 @@ def is_ranking_question(question):
     cannot answer filtered questions accurately.
     """
     question_lower = question.lower()
-
     ranking_keywords = [
         "most", "least", "largest", "smallest",
         "highest", "lowest", "biggest", "top", "bottom"
@@ -269,11 +268,9 @@ def is_ranking_question(question):
         "voice", "audio", "hardware", "chip", "defense",
         "healthcare", "fintech", "energy"
     ]
-
     has_ranking_word = any(kw in question_lower for kw in ranking_keywords)
     has_funding_word = any(kw in question_lower for kw in funding_keywords)
     has_exclusion_word = any(kw in question_lower for kw in exclusion_keywords)
-
     return has_ranking_word and has_funding_word and not has_exclusion_word
 
 
@@ -283,14 +280,12 @@ def answer_ranking_question(question):
     fully-sorted funding_table, rather than using RAG retrieval.
     """
     question_lower = question.lower()
-
     if any(word in question_lower for word in ["least", "smallest", "lowest", "bottom"]):
         entry = funding_table[-1]
         direction = "the least"
     else:
         entry = funding_table[0]
         direction = "the most"
-
     answer = (
         f"Based on all {len(funding_table)} funding announcements collected, "
         f"the company that raised {direction} was associated with this "
@@ -299,12 +294,93 @@ def answer_ranking_question(question):
     return answer, [entry["url"]]
 
 
+def is_list_question(question):
+    """
+    Detects questions asking for a full list of companies/deals,
+    which the funding_table can answer directly and completely,
+    unlike RAG retrieval which only returns a handful of chunks.
+    """
+    list_keywords = [
+        "list", "all companies", "which companies", "what companies",
+        "every company", "companies that", "companies who", "so far"
+    ]
+    question_lower = question.lower()
+    return any(kw in question_lower for kw in list_keywords)
+
+
+def answer_list_question(question):
+    """
+    Returns every company in funding_table as a clean list,
+    since this is exhaustive structured data, not a retrieval task.
+    """
+    lines = [
+        f"- {entry['title']} (${entry['amount_millions']:,.1f}M)"
+        for entry in funding_table
+    ]
+    answer = (
+        f"Here are all {len(funding_table)} funding announcements collected:\n\n"
+        + "\n".join(lines)
+    )
+    urls = list(set(entry["url"] for entry in funding_table))
+    return answer, urls
+
+
+def is_full_summary_question(question):
+    """
+    Detects questions asking for a summary/description of every
+    company, which requires guaranteed full coverage rather than
+    a single broad RAG retrieval limited by top_k.
+    """
+    summary_keywords = [
+        "summary of each", "summarize each", "summary of every",
+        "describe each", "each of the companies", "every company"
+    ]
+    question_lower = question.lower()
+    return any(kw in question_lower for kw in summary_keywords)
+
+
+def answer_full_summary_question():
+    """
+    Builds a complete summary of every company in funding_table by
+    retrieving each company's own most relevant chunk individually,
+    guaranteeing full coverage instead of relying on one broad
+    retrieval call limited by top_k.
+    """
+    summaries = []
+    for entry in funding_table:
+        chunks = retrieve_relevant_chunks(entry["title"], top_k=2)
+        context = "\n\n".join(c["text"] for c in chunks)
+
+        prompt = (
+            f"Using ONLY the context below, write a 1-sentence summary "
+            f"of what this company does. Context:\n{context}"
+        )
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
+        description = response.choices[0].message.content.strip()
+        summaries.append(
+            f"**{entry['title']}** (${entry['amount_millions']:,.1f}M): {description}"
+        )
+
+    answer = "\n\n".join(summaries)
+    urls = list(set(entry["url"] for entry in funding_table))
+    return answer, urls
+
+
 def chatbot_response(question, history):
     """
-    Routes ranking questions (most/least funding) to the accurate
-    structured table, and all other questions to the RAG pipeline.
+    Routes full-summary questions to guaranteed complete coverage,
+    list questions to the full funding table, ranking questions to
+    the accurate structured table, and all other questions to RAG.
     """
-    if is_ranking_question(question):
+    if is_full_summary_question(question):
+        answer, sources = answer_full_summary_question()
+    elif is_list_question(question):
+        answer, sources = answer_list_question(question)
+    elif is_ranking_question(question):
         answer, sources = answer_ranking_question(question)
     else:
         answer, sources = answer_question(question)
