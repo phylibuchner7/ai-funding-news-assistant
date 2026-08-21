@@ -324,14 +324,15 @@ def answer_ranking_question(question):
             f"the company that raised {direction} was associated with this "
             f"headline: \"{entry['title']}\" (${entry['amount_millions']:,.1f}M)."
         )
-    else:
+        else:
         lines = [
             f"{i+1}. {e['title']} (${e['amount_millions']:,.1f}M)"
             for i, e in enumerate(entries)
         ]
+        label = "smallest" if direction == "the least" else "largest"
         answer = (
             f"Based on all {len(funding_table)} funding announcements collected, "
-            f"here are the top {count} by amount raised:\n\n" + "\n".join(lines)
+            f"here are the {count} {label} by amount raised:\n\n" + "\n".join(lines)
         )
 
     urls = list(set(e["url"] for e in entries))
