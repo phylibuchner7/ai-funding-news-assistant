@@ -301,12 +301,12 @@ def answer_ranking_question(question):
     Answers a most/least-style question directly from the accurate,
     fully-sorted funding_table, rather than using RAG retrieval.
     Supports both single-answer questions ("the most") and multi-
-    answer questions ("top 3", "top 5").
+    answer questions ("top 3", "bottom 5").
     """
     question_lower = question.lower()
 
     # Check if the question asks for a specific number of results
-    # (e.g. "top 3", "top 5") -- default to 1 if no number is found
+    # (e.g. "top 3", "bottom 5") -- matches either word, not just "top"
     count_match = re.search(r'\b(?:top|bottom)\s+(\d+)\b', question_lower)
     count = int(count_match.group(1)) if count_match else 1
 
@@ -324,7 +324,7 @@ def answer_ranking_question(question):
             f"the company that raised {direction} was associated with this "
             f"headline: \"{entry['title']}\" (${entry['amount_millions']:,.1f}M)."
         )
-        else:
+    else:
         lines = [
             f"{i+1}. {e['title']} (${e['amount_millions']:,.1f}M)"
             for i, e in enumerate(entries)
