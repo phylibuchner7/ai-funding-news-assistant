@@ -300,21 +300,42 @@ def answer_ranking_question(question):
     """
     Answers a most/least-style question directly from the accurate,
     fully-sorted funding_table, rather than using RAG retrieval.
+    Supports both single-answer questions ("the most") and multi-
+    answer questions ("top 3", "top 5").
     """
     question_lower = question.lower()
+
+    # Check if the question asks for a specific number of results
+    # (e.g. "top 3", "top 5") -- default to 1 if no number is found
+    count_match = re.search(r'\btop\s+(\d+)\b', question_lower)
+    count = int(count_match.group(1)) if count_match else 1
+
     if any(word in question_lower for word in ["least", "smallest", "lowest", "bottom"]):
-        entry = funding_table[-1]
+        entries = funding_table[-count:][::-1]  # smallest N, in ascending order
         direction = "the least"
     else:
-        entry = funding_table[0]
+        entries = funding_table[:count]  # largest N
         direction = "the most"
-    answer = (
-        f"Based on all {len(funding_table)} funding announcements collected, "
-        f"the company that raised {direction} was associated with this "
-        f"headline: \"{entry['title']}\" (${entry['amount_millions']:,.1f}M)."
-    )
-    return answer, [entry["url"]]
 
+    if count == 1:
+        entry = entries[0]
+        answer = (
+            f"Based on all {len(funding_table)} funding announcements collected, "
+            f"the company that raised {direction} was associated with this "
+            f"headline: \"{entry['title']}\" (${entry['amount_millions']:,.1f}M)."
+        )
+    else:
+        lines = [
+            f"{i+1}. {e['title']} (${e['amount_millions']:,.1f}M)"
+            for i, e in enumerate(entries)
+        ]
+        answer = (
+            f"Based on all {len(funding_table)} funding announcements collected, "
+            f"here are the top {count} by amount raised:\n\n" + "\n".join(lines)
+        )
+
+    urls = list(set(e["url"] for e in entries))
+    return answer, urls
 
 def is_list_question(question):
     """
