@@ -276,6 +276,45 @@ def is_ranking_question(question):
 
     return has_ranking_word and has_funding_word and not has_exclusion_word
 
+
+def answer_ranking_question(question):
+    """
+    Answers a most/least-style question directly from the accurate,
+    fully-sorted funding_table, rather than using RAG retrieval.
+    """
+    question_lower = question.lower()
+
+    if any(word in question_lower for word in ["least", "smallest", "lowest", "bottom"]):
+        entry = funding_table[-1]
+        direction = "the least"
+    else:
+        entry = funding_table[0]
+        direction = "the most"
+
+    answer = (
+        f"Based on all {len(funding_table)} funding announcements collected, "
+        f"the company that raised {direction} was associated with this "
+        f"headline: \"{entry['title']}\" (${entry['amount_millions']:,.1f}M)."
+    )
+    return answer, [entry["url"]]
+
+
+def chatbot_response(question, history):
+    """
+    Routes ranking questions (most/least funding) to the accurate
+    structured table, and all other questions to the RAG pipeline.
+    """
+    if is_ranking_question(question):
+        answer, sources = answer_ranking_question(question)
+    else:
+        answer, sources = answer_question(question)
+
+    if sources:
+        sources_text = "\n".join(f"- {url}" for url in sources)
+        return f"{answer}\n\n**Sources:**\n{sources_text}"
+    else:
+        return answer
+
 # ============================================================
 # STEP 8: Gradio Chat Interface
 # ============================================================
