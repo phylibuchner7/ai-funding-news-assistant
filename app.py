@@ -276,11 +276,11 @@ def is_ranking_question(question):
         "who is", "who's", "ceo", "founder", "founded",
         "when", "where", "why", "how many employees",
         "headquartered", "based in", "investor", "led by",
-        "recent", "recently", "this week", "this month",
         "space", "sector", "industry", "category",
         "voice", "audio", "hardware", "chip", "defense",
         "healthcare", "fintech", "energy"
     ]
+    
     has_ranking_word = any(kw in question_lower for kw in ranking_keywords)
     has_funding_word = any(kw in question_lower for kw in funding_keywords)
     has_exclusion_word = any(kw in question_lower for kw in exclusion_keywords)
