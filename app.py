@@ -449,7 +449,7 @@ demo = gr.ChatInterface(
     examples=[
         "What was the largest funding round this week?",
         "Which companies raised money for AI hardware?",
-        "What did Databricks raise?",
+        "List all companies that received funding so far.",
     ],
 )
 
